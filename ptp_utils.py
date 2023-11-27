@@ -104,13 +104,16 @@ def text2image_ldm(
     generator: Optional[torch.Generator] = None,
     latent: Optional[torch.FloatTensor] = None,
 ):
+    #model에 controller를 등록한다.
     register_attention_control(model, controller)
     height = width = 256
     batch_size = len(prompt)
     
+    #uncond 토크나이징&임베딩
     uncond_input = model.tokenizer([""] * batch_size, padding="max_length", max_length=77, return_tensors="pt")
     uncond_embeddings = model.bert(uncond_input.input_ids.to(model.device))[0]
     
+    #prompt 토크나이징&임베딩
     text_input = model.tokenizer(prompt, padding="max_length", max_length=77, return_tensors="pt")
     text_embeddings = model.bert(text_input.input_ids.to(model.device))[0]
     latent, latents = init_latent(latent, model, height, width, generator, batch_size)
@@ -136,10 +139,12 @@ def text2image_ldm_stable(
     latent: Optional[torch.FloatTensor] = None,
     low_resource: bool = False,
 ):
+    #model에 controller를 등록한다.
     register_attention_control(model, controller)
     height = width = 512
     batch_size = len(prompt)
 
+    #prompt 토크나이징&임베딩
     text_input = model.tokenizer(
         prompt,
         padding="max_length",
@@ -149,6 +154,8 @@ def text2image_ldm_stable(
     )
     text_embeddings = model.text_encoder(text_input.input_ids.to(model.device))[0]
     max_length = text_input.input_ids.shape[-1]
+    
+    #uncond 토크나이징&임베딩 for classifier-free guidance
     uncond_input = model.tokenizer(
         [""] * batch_size, padding="max_length", max_length=max_length, return_tensors="pt"
     )
@@ -169,8 +176,8 @@ def text2image_ldm_stable(
     return image, latent
 
 
-#register_attention_control은 model에 latent 입력 전에,
-#controller에 의해 모델의 cross attention 계산방식을 결정하도록 controller를 등록하는 함수이다.
+#register_attention_control은 model에 latent 입력 전에 실행한다.
+#모델의 cross attention 계산방식을 변경하도록, overriding 방식으로 controller를 등록하는 함수이다.
 def register_attention_control(model, controller):
     def ca_forward(self, place_in_unet):
             to_out = self.to_out
